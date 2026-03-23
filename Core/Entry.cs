@@ -12,6 +12,7 @@ namespace Crestkey.Core
         public string Url { get; set; } = "";
         public string Notes { get; set; } = "";
         public string Category { get; set; } = "General";
+        public string TotpSecret { get; set; } = "";
         public DateTime Created { get; set; } = DateTime.UtcNow;
         public DateTime Modified { get; set; } = DateTime.UtcNow;
         public List<string> Tags { get; set; } = new List<string>();

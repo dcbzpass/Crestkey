@@ -70,6 +70,8 @@
   <ItemGroup>
     <Compile Include="Core\Crypto.cs" />
     <Compile Include="Core\Entry.cs" />
+    <Compile Include="Core\IdleLock.cs" />
+    <Compile Include="Core\Totp.cs" />
     <Compile Include="Core\Vault.cs" />
     <Compile Include="Forms\GeneratorForm.cs">
       <SubType>Form</SubType>
@@ -80,9 +82,7 @@
     <Compile Include="Forms\UnlockForms.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="Program.cs">
-      <SubType>Form</SubType>
-    </Compile>
+    <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>

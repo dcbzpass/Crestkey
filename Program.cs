@@ -1,12 +1,23 @@
-﻿using System.Windows.Forms;
+﻿using System;
+using System.Windows.Forms;
 using Crestkey.Core;
+using Crestkey.Forms;
 
-namespace Crestkey.Forms
+namespace Crestkey
 {
-    public class MainForm : Form
+    static class Program
     {
-        public MainForm(Vault vault)
+        [STAThread]
+        static void Main()
         {
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
+
+            var unlock = new UnlockForm();
+            if (unlock.ShowDialog() != DialogResult.OK)
+                return;
+
+            Application.Run(new MainForm(unlock.UnlockedVault));
         }
     }
 }

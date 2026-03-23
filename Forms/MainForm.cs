@@ -33,13 +33,22 @@ namespace Crestkey.Forms
         private TextBox _txtUrl;
         private TextBox _txtNotes;
         private TextBox _txtCategory;
+        private TextBox _txtTotpSecret;
         private Button _btnCopyUser;
         private Button _btnCopyPass;
         private Button _btnTogglePass;
+        private Button _btnCopyTotp;
         private Label _lblModified;
+        private Label _lblClipStatus;
+        private Label _lblTotpCode;
+        private Label _lblTotpTimer;
+        private System.Windows.Forms.Timer _totpTimer;
 
+        private System.Windows.Forms.Timer _clipTimer;
+        private IdleLock _idleLock;
         private bool _dirty;
         private const string SearchPlaceholder = "Search entries...";
+        private const int IdleTimeoutSeconds = 300;
 
         public MainForm(Vault vault)
         {
@@ -58,6 +67,22 @@ namespace Crestkey.Forms
             BackColor = Color.FromArgb(13, 13, 13);
             ForeColor = Color.FromArgb(245, 245, 245);
 
+            _clipTimer = new System.Windows.Forms.Timer { Interval = 30000 };
+            _clipTimer.Tick += (s, e) =>
+            {
+                Clipboard.Clear();
+                _clipTimer.Stop();
+                if (_lblClipStatus != null)
+                    _lblClipStatus.Text = "";
+            };
+
+            _idleLock = new IdleLock(IdleTimeoutSeconds, () => Invoke((Action)LockVault));
+            _idleLock.Reset();
+
+            _totpTimer = new System.Windows.Forms.Timer { Interval = 1000 };
+            _totpTimer.Tick += OnTotpTick;
+            _totpTimer.Start();
+
             BuildToolbar();
             BuildSidebar();
             BuildListPanel();
@@ -66,7 +91,13 @@ namespace Crestkey.Forms
             Controls.AddRange(new Control[] { _toolbar, _sidebar, _listPanel, _detailPanel });
 
             ResizeEnd += (s, e) => LayoutPanels();
-            Resize += (s, e) => LayoutPanels();
+            Resize += (s, e) =>
+            {
+                LayoutPanels();
+                if (WindowState == FormWindowState.Minimized)
+                    LockVault();
+            };
+
             LayoutPanels();
         }
 
@@ -86,10 +117,7 @@ namespace Crestkey.Forms
 
         private void BuildToolbar()
         {
-            _toolbar = new Panel
-            {
-                BackColor = Color.FromArgb(20, 20, 20)
-            };
+            _toolbar = new Panel { BackColor = Color.FromArgb(20, 20, 20) };
 
             _txtSearch = new TextBox
             {
@@ -137,7 +165,7 @@ namespace Crestkey.Forms
             _btnGenerator.Click += OnGenerator;
 
             _btnLock = MakeToolButton("Lock", -1);
-            _btnLock.Click += OnLock;
+            _btnLock.Click += (s, e) => OnLock();
 
             _toolbar.Controls.AddRange(new Control[] {
                 _txtSearch, _btnAdd, _btnDelete, _btnSave, _btnGenerator, _btnLock
@@ -168,10 +196,7 @@ namespace Crestkey.Forms
 
         private void BuildSidebar()
         {
-            _sidebar = new Panel
-            {
-                BackColor = Color.FromArgb(18, 18, 18)
-            };
+            _sidebar = new Panel { BackColor = Color.FromArgb(18, 18, 18) };
 
             var lblCat = new Label
             {
@@ -218,10 +243,7 @@ namespace Crestkey.Forms
 
         private void BuildListPanel()
         {
-            _listPanel = new Panel
-            {
-                BackColor = Color.FromArgb(15, 15, 15)
-            };
+            _listPanel = new Panel { BackColor = Color.FromArgb(15, 15, 15) };
 
             _lstEntries = new ListBox
             {
@@ -269,7 +291,6 @@ namespace Crestkey.Forms
                 new SolidBrush(Color.FromArgb(120, 120, 120)),
                 new Point(e.Bounds.X + 14, e.Bounds.Y + 26)
             );
-
             e.Graphics.DrawLine(
                 new Pen(Color.FromArgb(24, 24, 24)),
                 e.Bounds.Left, e.Bounds.Bottom - 1,
@@ -279,10 +300,7 @@ namespace Crestkey.Forms
 
         private void BuildDetailPanel()
         {
-            _detailPanel = new Panel
-            {
-                BackColor = Color.FromArgb(20, 20, 20)
-            };
+            _detailPanel = new Panel { BackColor = Color.FromArgb(20, 20, 20) };
 
             int y = 20;
             int labelX = 20;
@@ -327,12 +345,55 @@ namespace Crestkey.Forms
             };
 
             _btnCopyPass = MakeCopyButton("Copy Password", fieldX, y + 30);
-            _btnCopyPass.Click += (s, e) => CopyToClipboard(_txtPassword.Text, "Password");
-
+            _btnCopyPass.Click += (s, e) => CopyToClipboard(_txtPassword.Text, "password");
             y += 66;
 
             _txtUrl = MakeDetailField("URL", ref y, labelX, fieldX, fieldW);
             _txtCategory = MakeDetailField("Category", ref y, labelX, fieldX, fieldW);
+
+            var lblTotp = MakeDetailLabel("2FA / TOTP Secret", labelX, y);
+            _detailPanel.Controls.Add(lblTotp);
+            y += 20;
+
+            _txtTotpSecret = new TextBox
+            {
+                Location = new Point(fieldX, y),
+                Size = new Size(fieldW, 26),
+                BackColor = Color.FromArgb(28, 28, 28),
+                ForeColor = Color.FromArgb(245, 245, 245),
+                BorderStyle = BorderStyle.FixedSingle,
+                Font = new Font("Consolas", 9f),
+                PlaceholderText = "Base32 secret (optional)"
+            };
+            _txtTotpSecret.TextChanged += OnFieldChanged;
+            _detailPanel.Controls.Add(_txtTotpSecret);
+            y += 30;
+
+            _lblTotpCode = new Label
+            {
+                Text = "",
+                Location = new Point(fieldX, y),
+                Size = new Size(160, 28),
+                ForeColor = Color.FromArgb(100, 200, 120),
+                Font = new Font("Consolas", 16f, FontStyle.Bold)
+            };
+            _lblTotpTimer = new Label
+            {
+                Text = "",
+                Location = new Point(fieldX + 168, y + 8),
+                Size = new Size(60, 18),
+                ForeColor = Color.FromArgb(100, 100, 100),
+                Font = new Font("Segoe UI", 8f)
+            };
+            _btnCopyTotp = MakeCopyButton("Copy Code", fieldX + 168, y - 2);
+            _btnCopyTotp.Size = new Size(100, 26);
+            _btnCopyTotp.Click += (s, e) =>
+            {
+                if (!string.IsNullOrEmpty(_lblTotpCode.Text))
+                    CopyToClipboard(_lblTotpCode.Text, "TOTP code");
+            };
+            _detailPanel.Controls.AddRange(new Control[] { _lblTotpCode, _lblTotpTimer, _btnCopyTotp });
+            y += 36;
 
             var lblNotes = MakeDetailLabel("Notes", labelX, y);
             _detailPanel.Controls.Add(lblNotes);
@@ -353,8 +414,18 @@ namespace Crestkey.Forms
             y += 88;
 
             _btnCopyUser = MakeCopyButton("Copy Username", fieldX, y);
-            _btnCopyUser.Click += (s, e) => CopyToClipboard(_txtUsername.Text, "Username");
+            _btnCopyUser.Click += (s, e) => CopyToClipboard(_txtUsername.Text, "username");
             y += 36;
+
+            _lblClipStatus = new Label
+            {
+                Text = "",
+                Location = new Point(fieldX, y),
+                Size = new Size(fieldW, 18),
+                ForeColor = Color.FromArgb(80, 160, 80),
+                Font = new Font("Segoe UI", 7.5f)
+            };
+            y += 22;
 
             _lblModified = new Label
             {
@@ -366,7 +437,9 @@ namespace Crestkey.Forms
             };
 
             _detailPanel.Controls.AddRange(new Control[] {
-                _txtPassword, _btnTogglePass, _btnCopyPass, _txtNotes, _btnCopyUser, _lblModified
+                _txtPassword, _btnTogglePass, _btnCopyPass,
+                _txtNotes, _btnCopyUser,
+                _lblClipStatus, _lblModified
             });
 
             SetDetailEnabled(false);
@@ -374,8 +447,7 @@ namespace Crestkey.Forms
 
         private TextBox MakeDetailField(string label, ref int y, int labelX, int fieldX, int fieldW)
         {
-            var lbl = MakeDetailLabel(label, labelX, y);
-            _detailPanel.Controls.Add(lbl);
+            _detailPanel.Controls.Add(MakeDetailLabel(label, labelX, y));
             y += 20;
 
             var txt = new TextBox
@@ -453,8 +525,10 @@ namespace Crestkey.Forms
             _txtUrl.Text = entry.Url;
             _txtNotes.Text = entry.Notes;
             _txtCategory.Text = entry.Category;
+            _txtTotpSecret.Text = entry.TotpSecret ?? "";
             _lblModified.Text = "Modified " + entry.Modified.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
             _dirty = false;
+            UpdateTotpDisplay();
         }
 
         private void ClearDetail()
@@ -465,7 +539,11 @@ namespace Crestkey.Forms
             _txtUrl.Text = "";
             _txtNotes.Text = "";
             _txtCategory.Text = "";
+            _txtTotpSecret.Text = "";
+            _lblTotpCode.Text = "";
+            _lblTotpTimer.Text = "";
             _lblModified.Text = "";
+            _lblClipStatus.Text = "";
         }
 
         private void OnFieldChanged(object sender, EventArgs e)
@@ -514,14 +592,26 @@ namespace Crestkey.Forms
             _selected.Url = _txtUrl.Text;
             _selected.Notes = _txtNotes.Text;
             _selected.Category = string.IsNullOrWhiteSpace(_txtCategory.Text) ? "General" : _txtCategory.Text;
+            _selected.TotpSecret = _txtTotpSecret.Text.Trim();
             _selected.Modified = DateTime.UtcNow;
             _dirty = false;
         }
 
-        private void OnLock(object sender, EventArgs e)
+        private void OnLock()
         {
             if (_dirty && MessageBox.Show("You have unsaved changes. Lock anyway?", "Unsaved", MessageBoxButtons.YesNo) != DialogResult.Yes)
                 return;
+
+            LockVault();
+        }
+
+        private void LockVault()
+        {
+            _idleLock.Stop();
+            _clipTimer.Stop();
+            Clipboard.Clear();
+            _selected = null;
+            _dirty = false;
 
             var unlock = new UnlockForm();
             Hide();
@@ -532,7 +622,9 @@ namespace Crestkey.Forms
                 RefreshList();
                 ClearDetail();
                 SetDetailEnabled(false);
+                WindowState = FormWindowState.Normal;
                 Show();
+                _idleLock.Reset();
             }
             else
             {
@@ -552,6 +644,49 @@ namespace Crestkey.Forms
             }
         }
 
+        private void OnTotpTick(object sender, EventArgs e)
+        {
+            UpdateTotpDisplay();
+        }
+
+        private void UpdateTotpDisplay()
+        {
+            if (_selected == null || string.IsNullOrWhiteSpace(_txtTotpSecret.Text))
+            {
+                _lblTotpCode.Text = "";
+                _lblTotpTimer.Text = "";
+                _btnCopyTotp.Visible = false;
+                return;
+            }
+
+            if (!Totp.IsValidSecret(_txtTotpSecret.Text))
+            {
+                _lblTotpCode.Text = "Invalid";
+                _lblTotpCode.ForeColor = Color.FromArgb(200, 80, 80);
+                _lblTotpTimer.Text = "";
+                _btnCopyTotp.Visible = false;
+                return;
+            }
+
+            try
+            {
+                string code = Totp.Generate(_txtTotpSecret.Text);
+                int secs = Totp.SecondsRemaining();
+                _lblTotpCode.Text = code.Insert(3, " ");
+                _lblTotpCode.ForeColor = secs <= 5
+                    ? Color.FromArgb(220, 100, 60)
+                    : Color.FromArgb(100, 200, 120);
+                _lblTotpTimer.Text = $"{secs}s";
+                _btnCopyTotp.Visible = true;
+            }
+            catch
+            {
+                _lblTotpCode.Text = "Error";
+                _lblTotpCode.ForeColor = Color.FromArgb(200, 80, 80);
+                _btnCopyTotp.Visible = false;
+            }
+        }
+
         private void PromptSave()
         {
             if (MessageBox.Show("Save changes to current entry?", "Unsaved Changes", MessageBoxButtons.YesNo) == DialogResult.Yes)
@@ -562,6 +697,9 @@ namespace Crestkey.Forms
         {
             if (string.IsNullOrEmpty(text)) return;
             Clipboard.SetText(text);
+            _clipTimer.Stop();
+            _clipTimer.Start();
+            _lblClipStatus.Text = $"Copied {label} — clears in 30s";
         }
 
         private void RefreshCategories()
@@ -609,6 +747,10 @@ namespace Crestkey.Forms
                 if (result == DialogResult.Cancel) { e.Cancel = true; return; }
                 if (result == DialogResult.Yes) { CommitDetail(); _vault.Save(); }
             }
+            _clipTimer.Stop();
+            _idleLock.Stop();
+            _totpTimer.Stop();
+            Clipboard.Clear();
             base.OnFormClosing(e);
         }
     }
