@@ -300,7 +300,11 @@ namespace Crestkey.Forms
 
         private void BuildDetailPanel()
         {
-            _detailPanel = new Panel { BackColor = Color.FromArgb(20, 20, 20) };
+            _detailPanel = new Panel
+            {
+                BackColor = Color.FromArgb(20, 20, 20),
+                AutoScroll = true
+            };
 
             int y = 20;
             int labelX = 20;
@@ -314,14 +318,11 @@ namespace Crestkey.Forms
             _detailPanel.Controls.Add(lblPass);
             y += 20;
 
-            _txtPassword = new TextBox
+            _txtPassword = new DarkTextBox
             {
                 Location = new Point(fieldX, y),
                 Size = new Size(fieldW - 60, 26),
                 UseSystemPasswordChar = true,
-                BackColor = Color.FromArgb(28, 28, 28),
-                ForeColor = Color.FromArgb(245, 245, 245),
-                BorderStyle = BorderStyle.FixedSingle,
                 Font = new Font("Segoe UI", 9.5f)
             };
             _txtPassword.TextChanged += OnFieldChanged;
@@ -348,6 +349,8 @@ namespace Crestkey.Forms
             _btnCopyPass.Click += (s, e) => CopyToClipboard(_txtPassword.Text, "password");
             y += 66;
 
+            _detailPanel.Controls.AddRange(new Control[] { _txtPassword, _btnTogglePass, _btnCopyPass });
+
             _txtUrl = MakeDetailField("URL", ref y, labelX, fieldX, fieldW);
             _txtCategory = MakeDetailField("Category", ref y, labelX, fieldX, fieldW);
 
@@ -355,13 +358,10 @@ namespace Crestkey.Forms
             _detailPanel.Controls.Add(lblTotp);
             y += 20;
 
-            _txtTotpSecret = new TextBox
+            _txtTotpSecret = new DarkTextBox
             {
                 Location = new Point(fieldX, y),
                 Size = new Size(fieldW, 26),
-                BackColor = Color.FromArgb(28, 28, 28),
-                ForeColor = Color.FromArgb(245, 245, 245),
-                BorderStyle = BorderStyle.FixedSingle,
                 Font = new Font("Consolas", 9f)
             };
             _txtTotpSecret.TextChanged += OnFieldChanged;
@@ -398,14 +398,11 @@ namespace Crestkey.Forms
             _detailPanel.Controls.Add(lblNotes);
             y += 20;
 
-            _txtNotes = new TextBox
+            _txtNotes = new DarkTextBox
             {
                 Location = new Point(fieldX, y),
                 Size = new Size(fieldW, 80),
                 Multiline = true,
-                BackColor = Color.FromArgb(28, 28, 28),
-                ForeColor = Color.FromArgb(245, 245, 245),
-                BorderStyle = BorderStyle.FixedSingle,
                 Font = new Font("Segoe UI", 9.5f),
                 ScrollBars = ScrollBars.Vertical
             };
@@ -436,7 +433,6 @@ namespace Crestkey.Forms
             };
 
             _detailPanel.Controls.AddRange(new Control[] {
-                _txtPassword, _btnTogglePass, _btnCopyPass,
                 _txtNotes, _btnCopyUser,
                 _lblClipStatus, _lblModified
             });
@@ -449,13 +445,10 @@ namespace Crestkey.Forms
             _detailPanel.Controls.Add(MakeDetailLabel(label, labelX, y));
             y += 20;
 
-            var txt = new TextBox
+            var txt = new DarkTextBox
             {
                 Location = new Point(fieldX, y),
                 Size = new Size(fieldW, 26),
-                BackColor = Color.FromArgb(28, 28, 28),
-                ForeColor = Color.FromArgb(245, 245, 245),
-                BorderStyle = BorderStyle.FixedSingle,
                 Font = new Font("Segoe UI", 9.5f)
             };
             txt.TextChanged += OnFieldChanged;
@@ -496,7 +489,20 @@ namespace Crestkey.Forms
         private void SetDetailEnabled(bool enabled)
         {
             foreach (Control c in _detailPanel.Controls)
-                c.Enabled = enabled;
+            {
+                if (c is TextBox txt)
+                {
+                    txt.ReadOnly = !enabled;
+                    txt.BackColor = Color.FromArgb(28, 28, 28);
+                    txt.ForeColor = enabled
+                        ? Color.FromArgb(245, 245, 245)
+                        : Color.FromArgb(80, 80, 80);
+                }
+                else
+                {
+                    c.Enabled = enabled;
+                }
+            }
         }
 
         private void OnEntrySelected(object sender, EventArgs e)
@@ -751,6 +757,72 @@ namespace Crestkey.Forms
             _totpTimer.Stop();
             Clipboard.Clear();
             base.OnFormClosing(e);
+        }
+    }
+
+    internal class DarkTextBox : TextBox
+    {
+        private static readonly Color Back = Color.FromArgb(28, 28, 28);
+        private static readonly Color Fore = Color.FromArgb(245, 245, 245);
+        private static readonly Color ForeDim = Color.FromArgb(100, 100, 100);
+
+        [System.Runtime.InteropServices.DllImport("gdi32.dll")]
+        private static extern IntPtr CreateSolidBrush(int color);
+        [System.Runtime.InteropServices.DllImport("gdi32.dll")]
+        private static extern int SetBkColor(IntPtr hdc, int color);
+        [System.Runtime.InteropServices.DllImport("gdi32.dll")]
+        private static extern int SetTextColor(IntPtr hdc, int color);
+        private static int ToRef(Color c) => c.R | (c.G << 8) | (c.B << 16);
+
+        private IntPtr _brush;
+        private ParentHook _hook;
+
+        public DarkTextBox()
+        {
+            BackColor = Back;
+            ForeColor = Fore;
+            BorderStyle = BorderStyle.FixedSingle;
+            _brush = CreateSolidBrush(ToRef(Back));
+        }
+
+        protected override void OnParentChanged(EventArgs e)
+        {
+            base.OnParentChanged(e);
+            _hook?.ReleaseHandle();
+            if (Parent != null)
+            {
+                _hook = new ParentHook(Parent, this, _brush);
+            }
+        }
+
+        internal Color ActiveFore => (ReadOnly || !Enabled) ? ForeDim : Fore;
+        internal static int ToColorRef(Color c) => ToRef(c);
+        internal static Color BackColor2 => Back;
+
+        private class ParentHook : System.Windows.Forms.NativeWindow
+        {
+            private readonly DarkTextBox _owner;
+            private readonly IntPtr _brush;
+
+            public ParentHook(Control parent, DarkTextBox owner, IntPtr brush)
+            {
+                _owner = owner;
+                _brush = brush;
+                AssignHandle(parent.Handle);
+            }
+
+            protected override void WndProc(ref Message m)
+            {
+                // WM_CTLCOLOREDIT=0x0133, WM_CTLCOLORSTATIC=0x0138
+                if ((m.Msg == 0x0133 || m.Msg == 0x0138) && m.LParam == _owner.Handle)
+                {
+                    SetTextColor(m.WParam, ToColorRef(_owner.ActiveFore));
+                    SetBkColor(m.WParam, ToColorRef(BackColor2));
+                    m.Result = _brush;
+                    return;
+                }
+                base.WndProc(ref m);
+            }
         }
     }
 }
