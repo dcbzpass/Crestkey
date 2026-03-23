@@ -362,8 +362,7 @@ namespace Crestkey.Forms
                 BackColor = Color.FromArgb(28, 28, 28),
                 ForeColor = Color.FromArgb(245, 245, 245),
                 BorderStyle = BorderStyle.FixedSingle,
-                Font = new Font("Consolas", 9f),
-                PlaceholderText = "Base32 secret (optional)"
+                Font = new Font("Consolas", 9f)
             };
             _txtTotpSecret.TextChanged += OnFieldChanged;
             _detailPanel.Controls.Add(_txtTotpSecret);
