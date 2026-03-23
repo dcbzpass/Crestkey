@@ -39,6 +39,7 @@ namespace Crestkey.Forms
         private Label _lblModified;
 
         private bool _dirty;
+        private const string SearchPlaceholder = "Search entries...";
 
         public MainForm(Vault vault)
         {
@@ -92,15 +93,34 @@ namespace Crestkey.Forms
 
             _txtSearch = new TextBox
             {
-                PlaceholderText = "Search entries...",
+                Text = SearchPlaceholder,
                 Location = new Point(12, 11),
                 Size = new Size(220, 26),
                 BackColor = Color.FromArgb(32, 32, 32),
-                ForeColor = Color.FromArgb(245, 245, 245),
+                ForeColor = Color.FromArgb(100, 100, 100),
                 BorderStyle = BorderStyle.FixedSingle,
                 Font = new Font("Segoe UI", 9f)
             };
-            _txtSearch.TextChanged += (s, e) => RefreshList();
+            _txtSearch.GotFocus += (s, e) =>
+            {
+                if (_txtSearch.Text == SearchPlaceholder)
+                {
+                    _txtSearch.Text = "";
+                    _txtSearch.ForeColor = Color.FromArgb(245, 245, 245);
+                }
+            };
+            _txtSearch.LostFocus += (s, e) =>
+            {
+                if (string.IsNullOrEmpty(_txtSearch.Text))
+                {
+                    _txtSearch.Text = SearchPlaceholder;
+                    _txtSearch.ForeColor = Color.FromArgb(100, 100, 100);
+                }
+            };
+            _txtSearch.TextChanged += (s, e) =>
+            {
+                if (_txtSearch.Text != SearchPlaceholder) RefreshList();
+            };
 
             _btnAdd = MakeToolButton("+ Add", 250);
             _btnAdd.Click += OnAdd;
@@ -562,7 +582,7 @@ namespace Crestkey.Forms
 
         private void RefreshList()
         {
-            string search = _txtSearch.Text.ToLower();
+            string search = _txtSearch.Text == SearchPlaceholder ? "" : _txtSearch.Text.ToLower();
             string cat = _lstCategories.SelectedItem?.ToString();
 
             var filtered = _vault.Entries.AsEnumerable();
