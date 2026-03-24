@@ -107,12 +107,14 @@ namespace Crestkey.Forms
             int sideW = 160;
             int detailW = 340;
             int h = ClientSize.Height - tbH;
-            int listW = ClientSize.Width - sideW - detailW;
+            bool showDetail = _detailPanel != null && _detailPanel.Visible;
+            int listW = ClientSize.Width - sideW - (showDetail ? detailW : 0);
 
             _toolbar.SetBounds(0, 0, ClientSize.Width, tbH);
             _sidebar.SetBounds(0, tbH, sideW, h);
             _listPanel.SetBounds(sideW, tbH, listW, h);
-            _detailPanel.SetBounds(sideW + listW, tbH, detailW, h);
+            if (showDetail)
+                _detailPanel.SetBounds(sideW + listW, tbH, detailW, h);
         }
 
         private void BuildToolbar()
@@ -488,21 +490,8 @@ namespace Crestkey.Forms
 
         private void SetDetailEnabled(bool enabled)
         {
-            foreach (Control c in _detailPanel.Controls)
-            {
-                if (c is TextBox txt)
-                {
-                    txt.ReadOnly = !enabled;
-                    txt.BackColor = Color.FromArgb(28, 28, 28);
-                    txt.ForeColor = enabled
-                        ? Color.FromArgb(245, 245, 245)
-                        : Color.FromArgb(80, 80, 80);
-                }
-                else
-                {
-                    c.Enabled = enabled;
-                }
-            }
+            _detailPanel.Visible = enabled;
+            LayoutPanels();
         }
 
         private void OnEntrySelected(object sender, EventArgs e)
@@ -764,7 +753,6 @@ namespace Crestkey.Forms
     {
         private static readonly Color Back = Color.FromArgb(28, 28, 28);
         private static readonly Color Fore = Color.FromArgb(245, 245, 245);
-        private static readonly Color ForeDim = Color.FromArgb(100, 100, 100);
 
         [System.Runtime.InteropServices.DllImport("gdi32.dll")]
         private static extern IntPtr CreateSolidBrush(int color);
@@ -774,7 +762,7 @@ namespace Crestkey.Forms
         private static extern int SetTextColor(IntPtr hdc, int color);
         private static int ToRef(Color c) => c.R | (c.G << 8) | (c.B << 16);
 
-        private IntPtr _brush;
+        private readonly IntPtr _brush;
         private ParentHook _hook;
 
         public DarkTextBox()
@@ -790,14 +778,8 @@ namespace Crestkey.Forms
             base.OnParentChanged(e);
             _hook?.ReleaseHandle();
             if (Parent != null)
-            {
                 _hook = new ParentHook(Parent, this, _brush);
-            }
         }
-
-        internal Color ActiveFore => (ReadOnly || !Enabled) ? ForeDim : Fore;
-        internal static int ToColorRef(Color c) => ToRef(c);
-        internal static Color BackColor2 => Back;
 
         private class ParentHook : System.Windows.Forms.NativeWindow
         {
@@ -813,11 +795,10 @@ namespace Crestkey.Forms
 
             protected override void WndProc(ref Message m)
             {
-                // WM_CTLCOLOREDIT=0x0133, WM_CTLCOLORSTATIC=0x0138
                 if ((m.Msg == 0x0133 || m.Msg == 0x0138) && m.LParam == _owner.Handle)
                 {
-                    SetTextColor(m.WParam, ToColorRef(_owner.ActiveFore));
-                    SetBkColor(m.WParam, ToColorRef(BackColor2));
+                    SetTextColor(m.WParam, ToRef(Fore));
+                    SetBkColor(m.WParam, ToRef(Back));
                     m.Result = _brush;
                     return;
                 }
