@@ -73,10 +73,8 @@ namespace Crestkey.Forms
 
             _totpTimer = new System.Windows.Forms.Timer { Interval = 1000 };
             _totpTimer.Tick += (s, e) => UpdateTotpDisplay();
-            _totpTimer.Start();
 
-            _idleLock = new IdleLock(IdleTimeoutSeconds, () => Invoke((Action)LockVault));
-            _idleLock.Reset();
+            _idleLock = new IdleLock(IdleTimeoutSeconds, () => { if (IsHandleCreated) Invoke((Action)LockVault); });
         }
 
         // ══════════════════════════════════════════════════════════════════════
@@ -100,7 +98,14 @@ namespace Crestkey.Forms
             Controls.AddRange(new Control[] { _toolbar, _sidebar, _listPanel, _detailPanel });
             Resize += (s, e) => { LayoutPanels(); if (WindowState == FormWindowState.Minimized) LockVault(); };
             ResizeEnd += (s, e) => LayoutPanels();
+            Shown += (s, e) => { _totpTimer.Start(); _idleLock.Reset(); };
             LayoutPanels();
+        }
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            DwmHelper.SetTitleBarColor(Handle, C_SURFACE);
         }
 
         private void LayoutPanels()
@@ -551,7 +556,7 @@ namespace Crestkey.Forms
 
         private void LockVault()
         {
-            _idleLock.Stop(); _clipTimer.Stop(); Clipboard.Clear();
+            _idleLock.Stop(); _clipTimer.Stop(); _totpTimer.Stop(); Clipboard.Clear();
             _selected = null; _dirty = false;
             var unlock = new UnlockForm();
             Hide();
@@ -561,6 +566,7 @@ namespace Crestkey.Forms
                 RefreshCategories(); RefreshList(); ClearDetail(); SetDetailVisible(false);
                 WindowState = FormWindowState.Normal;
                 Show();
+                _totpTimer.Start();
                 _idleLock.Reset();
             }
             else Application.Exit();
@@ -631,11 +637,17 @@ namespace Crestkey.Forms
             _lstCategories.Items.Add("All entries");
             foreach (var c in _vault.Entries.Select(e => e.Category).Distinct().OrderBy(c => c))
                 _lstCategories.Items.Add(c);
-            _lstCategories.SelectedItem = _lstCategories.Items.Contains(cur) ? cur : "All entries";
+
+            int idx = 0;
+            if (cur != null)
+                for (int i = 0; i < _lstCategories.Items.Count; i++)
+                    if (_lstCategories.Items[i].ToString() == cur) { idx = i; break; }
+            _lstCategories.SelectedIndex = idx;
         }
 
         private void RefreshList()
         {
+            if (_lstEntries == null || _lstCategories == null || _txtSearch == null) return;
             string search = _txtSearch.Text == SearchPlaceholder ? "" : _txtSearch.Text.ToLower();
             string cat = _lstCategories.SelectedItem?.ToString();
             var filtered = _vault.Entries.AsEnumerable();
@@ -719,6 +731,23 @@ namespace Crestkey.Forms
                 }
                 base.WndProc(ref m);
             }
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // DwmHelper — colors the native Windows title bar via DWMAPI
+    // ══════════════════════════════════════════════════════════════════════════
+    internal static class DwmHelper
+    {
+        [System.Runtime.InteropServices.DllImport("dwmapi.dll")]
+        private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
+
+        private const int DWMWA_CAPTION_COLOR = 35;
+
+        public static void SetTitleBarColor(IntPtr handle, Color color)
+        {
+            int colorRef = color.B << 16 | color.G << 8 | color.R;
+            DwmSetWindowAttribute(handle, DWMWA_CAPTION_COLOR, ref colorRef, sizeof(int));
         }
     }
 }

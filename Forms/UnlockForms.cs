@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 using Crestkey.Core;
 
@@ -7,8 +8,15 @@ namespace Crestkey.Forms
 {
     public class UnlockForm : Form
     {
-        private Label _lblTitle;
-        private Label _lblSub;
+        static readonly Color C_BG = Color.FromArgb(12, 12, 14);
+        static readonly Color C_SURFACE = Color.FromArgb(18, 18, 22);
+        static readonly Color C_RAISED = Color.FromArgb(26, 26, 32);
+        static readonly Color C_BORDER = Color.FromArgb(38, 38, 48);
+        static readonly Color C_MUTED = Color.FromArgb(72, 72, 90);
+        static readonly Color C_TEXT = Color.FromArgb(225, 225, 235);
+        static readonly Color C_ACCENT = Color.FromArgb(99, 102, 241);
+        static readonly Color C_RED = Color.FromArgb(248, 113, 113);
+
         private TextBox _txtPassword;
         private Button _btnUnlock;
         private Label _lblError;
@@ -21,71 +29,121 @@ namespace Crestkey.Forms
             BuildUI();
         }
 
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            DwmHelper.SetTitleBarColor(Handle, C_SURFACE);
+        }
+
         private void BuildUI()
         {
+            bool exists = Vault.VaultExists();
+
             Text = "Crestkey";
-            Size = new Size(400, 300);
+            Size = new Size(420, 340);
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.FixedSingle;
             MaximizeBox = false;
-            BackColor = Color.FromArgb(18, 18, 18);
-            ForeColor = Color.FromArgb(245, 245, 245);
+            BackColor = C_BG;
+            ForeColor = C_TEXT;
+            Font = new Font("Segoe UI", 9.5f);
 
-            _lblTitle = new Label
+            // ── Logo / header ─────────────────────────────────────────────────
+            var lblIcon = new Label
+            {
+                Text = "🔑",
+                Location = new Point(30, 28),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 22f)
+            };
+
+            var lblTitle = new Label
             {
                 Text = "Crestkey",
-                Font = new Font("Segoe UI", 20f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(245, 245, 245),
+                Location = new Point(68, 30),
                 AutoSize = true,
-                Location = new Point(30, 30)
+                ForeColor = C_TEXT,
+                Font = new Font("Segoe UI", 18f, FontStyle.Bold)
             };
 
-            _lblSub = new Label
+            var lblSub = new Label
             {
-                Text = Vault.VaultExists() ? "Enter your master password" : "Create a master password",
-                Font = new Font("Segoe UI", 9f),
-                ForeColor = Color.FromArgb(150, 150, 150),
+                Text = exists ? "Enter your master password to unlock" : "Choose a master password to get started",
+                Location = new Point(30, 82),
                 AutoSize = true,
-                Location = new Point(32, 70)
-            };
-
-            _txtPassword = new TextBox
-            {
-                Location = new Point(30, 100),
-                Size = new Size(320, 30),
-                UseSystemPasswordChar = true,
-                BackColor = Color.FromArgb(30, 30, 30),
-                ForeColor = Color.FromArgb(245, 245, 245),
-                BorderStyle = BorderStyle.FixedSingle,
-                Font = new Font("Segoe UI", 10f)
-            };
-            _txtPassword.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) TryUnlock(); };
-
-            _chkShow = new CheckBox
-            {
-                Text = "Show password",
-                Location = new Point(30, 135),
-                AutoSize = true,
-                ForeColor = Color.FromArgb(150, 150, 150),
-                FlatStyle = FlatStyle.Flat
-            };
-            _chkShow.CheckedChanged += (s, e) => _txtPassword.UseSystemPasswordChar = !_chkShow.Checked;
-
-            _lblError = new Label
-            {
-                Text = "",
-                ForeColor = Color.FromArgb(220, 80, 80),
-                AutoSize = true,
-                Location = new Point(30, 163),
+                ForeColor = C_MUTED,
                 Font = new Font("Segoe UI", 9f)
             };
 
+            // ── Divider ───────────────────────────────────────────────────────
+            var divider = new Panel
+            {
+                Location = new Point(30, 108),
+                Size = new Size(340, 1),
+                BackColor = C_BORDER
+            };
+
+            // ── Password field ────────────────────────────────────────────────
+            var lblPass = new Label
+            {
+                Text = "MASTER PASSWORD",
+                Location = new Point(30, 122),
+                AutoSize = true,
+                ForeColor = C_MUTED,
+                Font = new Font("Segoe UI", 7f, FontStyle.Bold)
+            };
+
+            var fieldWrap = new Panel
+            {
+                Location = new Point(30, 140),
+                Size = new Size(340, 36),
+                BackColor = C_RAISED
+            };
+            fieldWrap.Paint += PaintRoundBorder;
+
+            _txtPassword = new TextBox
+            {
+                Location = new Point(10, 8),
+                Size = new Size(320, 20),
+                UseSystemPasswordChar = true,
+                BackColor = C_RAISED,
+                ForeColor = C_TEXT,
+                BorderStyle = BorderStyle.None,
+                Font = new Font("Segoe UI", 10.5f)
+            };
+            _txtPassword.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) TryUnlock(); };
+            fieldWrap.Controls.Add(_txtPassword);
+
+            // ── Show password checkbox ────────────────────────────────────────
+            _chkShow = new CheckBox
+            {
+                Text = "Show password",
+                Location = new Point(30, 184),
+                AutoSize = true,
+                ForeColor = C_MUTED,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 8.5f)
+            };
+            _chkShow.FlatAppearance.BorderColor = C_BORDER;
+            _chkShow.CheckedChanged += (s, e) => _txtPassword.UseSystemPasswordChar = !_chkShow.Checked;
+
+            // ── Error label ───────────────────────────────────────────────────
+            _lblError = new Label
+            {
+                Text = "",
+                Location = new Point(30, 210),
+                AutoSize = true,
+                ForeColor = C_RED,
+                Font = new Font("Segoe UI", 8.5f)
+            };
+
+            // ── Unlock button ─────────────────────────────────────────────────
             _btnUnlock = new Button
             {
-                Text = Vault.VaultExists() ? "Unlock" : "Create Vault",
-                Location = new Point(30, 190),
-                Size = new Size(320, 36),
-                BackColor = Color.FromArgb(60, 120, 255),
+                Text = exists ? "Unlock Vault" : "Create Vault",
+                Location = new Point(30, 254),
+                Size = new Size(340, 38),
+                BackColor = C_ACCENT,
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
                 Font = new Font("Segoe UI", 10f, FontStyle.Bold),
@@ -94,16 +152,18 @@ namespace Crestkey.Forms
             _btnUnlock.FlatAppearance.BorderSize = 0;
             _btnUnlock.Click += (s, e) => TryUnlock();
 
-            Controls.AddRange(new Control[] {
-                _lblTitle, _lblSub, _txtPassword, _chkShow, _lblError, _btnUnlock
+            Controls.AddRange(new Control[]
+            {
+                lblIcon, lblTitle, lblSub, divider,
+                lblPass, fieldWrap, _chkShow, _lblError, _btnUnlock
             });
         }
 
         private void TryUnlock()
         {
-            string password = _txtPassword.Text;
+            string pw = _txtPassword.Text;
 
-            if (string.IsNullOrEmpty(password))
+            if (string.IsNullOrEmpty(pw))
             {
                 _lblError.Text = "Password cannot be empty.";
                 return;
@@ -111,32 +171,51 @@ namespace Crestkey.Forms
 
             if (!Vault.VaultExists())
             {
-                if (password.Length < 8)
+                if (pw.Length < 8)
                 {
                     _lblError.Text = "Master password must be at least 8 characters.";
                     return;
                 }
-                UnlockedVault = Vault.CreateNew(password);
+                UnlockedVault = Vault.CreateNew(pw);
                 DialogResult = DialogResult.OK;
                 return;
             }
 
             _btnUnlock.Enabled = false;
-            _btnUnlock.Text = "Unlocking...";
+            _btnUnlock.Text = "Unlocking…";
 
             var (vault, _) = Vault.LoadRaw();
-            if (vault.TryUnlock(password))
+            if (vault.TryUnlock(pw))
             {
                 UnlockedVault = vault;
                 DialogResult = DialogResult.OK;
             }
             else
             {
-                _lblError.Text = "Incorrect password.";
+                _lblError.Text = "Incorrect password. Please try again.";
                 _btnUnlock.Enabled = true;
-                _btnUnlock.Text = "Unlock";
+                _btnUnlock.Text = "Unlock Vault";
                 _txtPassword.Clear();
                 _txtPassword.Focus();
+            }
+        }
+
+        private static void PaintRoundBorder(object sender, PaintEventArgs e)
+        {
+            var p = sender as Panel;
+            if (p == null) return;
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            using (var pen = new Pen(Color.FromArgb(50, 50, 65)))
+            {
+                var r = new Rectangle(0, 0, p.Width - 1, p.Height - 1);
+                int rad = 6;
+                var path = new GraphicsPath();
+                path.AddArc(r.X, r.Y, rad, rad, 180, 90);
+                path.AddArc(r.Right - rad, r.Y, rad, rad, 270, 90);
+                path.AddArc(r.Right - rad, r.Bottom - rad, rad, rad, 0, 90);
+                path.AddArc(r.X, r.Bottom - rad, rad, rad, 90, 90);
+                path.CloseFigure();
+                e.Graphics.DrawPath(pen, path);
             }
         }
     }
