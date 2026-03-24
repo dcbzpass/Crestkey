@@ -27,7 +27,8 @@ namespace Crestkey.Forms
         private const string SearchPlaceholder = "Search entries…";
         private const int IdleTimeoutSeconds = 300;
 
-        private Panel _toolbar, _sidebar, _listPanel, _detailPanel;
+        private Panel _toolbar, _sidebar, _listPanel;
+        private DarkScrollPanel _detailPanel;
 
         private TextBox _txtSearch;
         private Button _btnAdd, _btnDelete, _btnSave, _btnGenerator, _btnLock;
@@ -310,7 +311,7 @@ namespace Crestkey.Forms
 
         private void BuildDetailPanel()
         {
-            _detailPanel = new Panel { BackColor = C_SURFACE, AutoScroll = true, Visible = false };
+            _detailPanel = new DarkScrollPanel { BackColor = C_SURFACE, Visible = false };
             _detailPanel.Paint += (s, e) =>
                 e.Graphics.DrawLine(new Pen(C_BORDER), 0, 0, 0, _detailPanel.Height);
 
@@ -365,10 +366,10 @@ namespace Crestkey.Forms
             y += 46;
 
             SectionLabel("Notes", px, y); y += 20;
-            _txtNotes = new DarkTextBox { Location = new Point(px, y), Size = new Size(fw, 90), Multiline = true, ScrollBars = ScrollBars.Vertical, Font = new Font("Segoe UI", 9.5f) };
+            _txtNotes = new DarkTextBox { Location = new Point(px, y), Size = new Size(fw, 120), Multiline = true, Font = new Font("Segoe UI", 9.5f) };
             _txtNotes.TextChanged += OnFieldChanged;
             _detailPanel.Controls.Add(_txtNotes);
-            y += 98;
+            y += 128;
 
             _btnCopyUser = DetailWideBtn("Copy username", px, y, fw);
             _btnCopyUser.Click += (s, e) => CopyToClipboard(_txtUsername.Text, "username");
@@ -378,6 +379,7 @@ namespace Crestkey.Forms
             y += 22;
             _lblModified = new Label { Location = new Point(px, y), Size = new Size(fw, 18), ForeColor = C_MUTED, Font = new Font("Segoe UI", 7.5f), Text = "" };
             _detailPanel.Controls.AddRange(new Control[] { _lblClipStatus, _lblModified });
+            _detailPanel.FreezeLayout();
         }
 
         private DarkTextBox DetailField(string label, ref int y, int x, int w)
@@ -445,6 +447,7 @@ namespace Crestkey.Forms
             _selected = _lstEntries.SelectedItem as Entry;
             if (_selected == null) { SetDetailVisible(false); ClearDetail(); return; }
             SetDetailVisible(true);
+            _detailPanel.ResetScroll();
             PopulateDetail(_selected);
             _dirty = false;
         }
@@ -725,4 +728,154 @@ namespace Crestkey.Forms
             DwmSetWindowAttribute(handle, DWMWA_CAPTION_COLOR, ref colorRef, sizeof(int));
         }
     }
+    internal class DarkScrollPanel : Panel
+    {
+        static readonly Color C_TRACK = Color.FromArgb(22, 22, 28);
+        static readonly Color C_THUMB = Color.FromArgb(80, 80, 100);
+        static readonly Color C_THUMB_HOT = Color.FromArgb(110, 110, 135);
+
+        private const int SB_W = 8;
+        private int _thumbY, _thumbH;
+        private bool _dragging;
+        private int _dragStartY, _dragStartScroll;
+        private bool _thumbHot;
+
+        public DarkScrollPanel()
+        {
+            AutoScroll = false;
+            DoubleBuffered = true;
+            SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
+        }
+
+        // Total content height — set after adding all children
+        public int ContentHeight { get; set; }
+
+        private int ScrollMax => Math.Max(0, ContentHeight - ClientSize.Height);
+        private int _scrollY;
+        private int ScrollY
+        {
+            get => _scrollY;
+            set
+            {
+                _scrollY = Math.Max(0, Math.Min(value, ScrollMax));
+                // Shift all children
+                foreach (Control c in Controls)
+                    c.Top = c.Tag is int baseTop ? baseTop - _scrollY : c.Top;
+                Invalidate();
+            }
+        }
+
+        public void ResetScroll()
+        {
+            _scrollY = 0;
+            foreach (Control c in Controls)
+                if (c.Tag is int baseTop) c.Top = baseTop;
+            Invalidate();
+        }
+
+        public void FreezeLayout()
+        {
+            // Call after all children added — snap their base Y into Tag
+            foreach (Control c in Controls)
+                c.Tag = c.Top;
+            ContentHeight = Controls.Count > 0
+                ? Controls.Cast<Control>().Max(c => (int)c.Tag + c.Height) + 24
+                : 0;
+        }
+
+        private void CalcThumb()
+        {
+            if (ScrollMax <= 0) { _thumbY = 0; _thumbH = 0; return; }
+            int trackH = ClientSize.Height - 4;
+            float ratio = (float)ClientSize.Height / ContentHeight;
+            _thumbH = Math.Max(24, (int)(trackH * ratio));
+            float scrollFrac = ScrollMax > 0 ? (float)_scrollY / ScrollMax : 0f;
+            _thumbY = 2 + (int)(scrollFrac * (trackH - _thumbH));
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            if (ScrollMax <= 0) return;
+            CalcThumb();
+            var g = e.Graphics;
+            int x = ClientSize.Width - SB_W - 2;
+            // track
+            using (var b = new System.Drawing.SolidBrush(C_TRACK))
+                g.FillRectangle(b, x, 2, SB_W, ClientSize.Height - 4);
+            // thumb
+            var thumbColor = _thumbHot ? C_THUMB_HOT : C_THUMB;
+            using (var b = new System.Drawing.SolidBrush(thumbColor))
+            {
+                var rect = new Rectangle(x + 1, _thumbY, SB_W - 2, _thumbH);
+                int r = (SB_W - 2) / 2;
+                using (var path = new System.Drawing.Drawing2D.GraphicsPath())
+                {
+                    path.AddArc(rect.X, rect.Y, r * 2, r * 2, 180, 180);
+                    path.AddArc(rect.X, rect.Bottom - r * 2, r * 2, r * 2, 0, 180);
+                    path.CloseFigure();
+                    g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                    g.FillPath(b, path);
+                }
+            }
+        }
+
+        protected override void OnMouseWheel(MouseEventArgs e)
+        {
+            ScrollY -= e.Delta / 3;
+        }
+
+        protected override void OnMouseDown(MouseEventArgs e)
+        {
+            CalcThumb();
+            int x = ClientSize.Width - SB_W - 2;
+            var thumbRect = new Rectangle(x, _thumbY, SB_W, _thumbH);
+            if (thumbRect.Contains(e.Location))
+            {
+                _dragging = true;
+                _dragStartY = e.Y;
+                _dragStartScroll = _scrollY;
+                Capture = true;
+            }
+            else if (e.X >= x && ScrollMax > 0)
+            {
+                // click on track = page scroll
+                ScrollY += e.Y < _thumbY ? -ClientSize.Height : ClientSize.Height;
+            }
+        }
+
+        protected override void OnMouseMove(MouseEventArgs e)
+        {
+            CalcThumb();
+            int x = ClientSize.Width - SB_W - 2;
+            bool overThumb = new Rectangle(x, _thumbY, SB_W, _thumbH).Contains(e.Location);
+            if (overThumb != _thumbHot) { _thumbHot = overThumb; Invalidate(); }
+
+            if (_dragging)
+            {
+                int dy = e.Y - _dragStartY;
+                int trackH = ClientSize.Height - 4;
+                float scrollPerPx = ScrollMax > 0 ? (float)ScrollMax / (trackH - _thumbH) : 0;
+                ScrollY = _dragStartScroll + (int)(dy * scrollPerPx);
+            }
+        }
+
+        protected override void OnMouseUp(MouseEventArgs e)
+        {
+            _dragging = false;
+            Capture = false;
+        }
+
+        protected override void OnResize(EventArgs e)
+        {
+            base.OnResize(e);
+            // Re-apply scroll position after resize
+            int saved = _scrollY;
+            _scrollY = 0;
+            ScrollY = saved;
+            Invalidate();
+        }
+    }
+
+
 }

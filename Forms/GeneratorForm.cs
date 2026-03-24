@@ -42,6 +42,12 @@ namespace Crestkey.Forms
             Regenerate();
         }
 
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            DwmHelper.SetTitleBarColor(Handle, C_SURFACE);
+        }
+
         private void BuildUI()
         {
             Text = "Password Generator";
@@ -51,6 +57,8 @@ namespace Crestkey.Forms
             StartPosition = FormStartPosition.CenterParent;
             FormBorderStyle = FormBorderStyle.FixedSingle;
             MaximizeBox = false;
+            ShowIcon = false;
+            ShowInTaskbar = false;
             BackColor = C_BG;
             ForeColor = C_TEXT;
             Font = new Font("Segoe UI", 9.5f);
