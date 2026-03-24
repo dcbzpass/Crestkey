@@ -40,62 +40,57 @@ namespace Crestkey.Forms
             bool exists = Vault.VaultExists();
 
             Text = "Crestkey";
-            Size = new Size(420, 340);
+            Size = new Size(420, 320);
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.FixedSingle;
             MaximizeBox = false;
+            ShowIcon = false;
             BackColor = C_BG;
             ForeColor = C_TEXT;
             Font = new Font("Segoe UI", 9.5f);
 
-            // ── Logo / header ─────────────────────────────────────────────────
-            var lblIcon = new Label
-            {
-                Text = "🔑",
-                Location = new Point(30, 28),
-                AutoSize = true,
-                Font = new Font("Segoe UI", 22f)
-            };
-
+            // header
             var lblTitle = new Label
             {
                 Text = "Crestkey",
-                Location = new Point(68, 30),
+                Location = new Point(30, 26),
                 AutoSize = true,
                 ForeColor = C_TEXT,
-                Font = new Font("Segoe UI", 18f, FontStyle.Bold)
+                Font = new Font("Segoe UI", 22f, FontStyle.Bold)
             };
 
             var lblSub = new Label
             {
-                Text = exists ? "Enter your master password to unlock" : "Choose a master password to get started",
-                Location = new Point(30, 82),
+                Text = exists
+                    ? "Enter your master password to unlock"
+                    : "Choose a master password to get started",
+                Location = new Point(32, 74),
                 AutoSize = true,
                 ForeColor = C_MUTED,
                 Font = new Font("Segoe UI", 9f)
             };
 
-            // ── Divider ───────────────────────────────────────────────────────
             var divider = new Panel
             {
-                Location = new Point(30, 108),
+                Location = new Point(30, 100),
                 Size = new Size(340, 1),
                 BackColor = C_BORDER
             };
 
-            // ── Password field ────────────────────────────────────────────────
+            // password label
             var lblPass = new Label
             {
                 Text = "MASTER PASSWORD",
-                Location = new Point(30, 122),
+                Location = new Point(30, 114),
                 AutoSize = true,
                 ForeColor = C_MUTED,
                 Font = new Font("Segoe UI", 7f, FontStyle.Bold)
             };
 
+            // password field in rounded wrapper
             var fieldWrap = new Panel
             {
-                Location = new Point(30, 140),
+                Location = new Point(30, 132),
                 Size = new Size(340, 36),
                 BackColor = C_RAISED
             };
@@ -114,34 +109,32 @@ namespace Crestkey.Forms
             _txtPassword.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) TryUnlock(); };
             fieldWrap.Controls.Add(_txtPassword);
 
-            // ── Show password checkbox ────────────────────────────────────────
             _chkShow = new CheckBox
             {
                 Text = "Show password",
-                Location = new Point(30, 184),
+                Location = new Point(30, 176),
                 AutoSize = true,
                 ForeColor = C_MUTED,
                 FlatStyle = FlatStyle.Flat,
                 Font = new Font("Segoe UI", 8.5f)
             };
             _chkShow.FlatAppearance.BorderColor = C_BORDER;
-            _chkShow.CheckedChanged += (s, e) => _txtPassword.UseSystemPasswordChar = !_chkShow.Checked;
+            _chkShow.CheckedChanged += (s, e) =>
+                _txtPassword.UseSystemPasswordChar = !_chkShow.Checked;
 
-            // ── Error label ───────────────────────────────────────────────────
             _lblError = new Label
             {
                 Text = "",
-                Location = new Point(30, 210),
+                Location = new Point(30, 202),
                 AutoSize = true,
                 ForeColor = C_RED,
                 Font = new Font("Segoe UI", 8.5f)
             };
 
-            // ── Unlock button ─────────────────────────────────────────────────
             _btnUnlock = new Button
             {
                 Text = exists ? "Unlock Vault" : "Create Vault",
-                Location = new Point(30, 254),
+                Location = new Point(30, 240),
                 Size = new Size(340, 38),
                 BackColor = C_ACCENT,
                 ForeColor = Color.White,
@@ -154,7 +147,7 @@ namespace Crestkey.Forms
 
             Controls.AddRange(new Control[]
             {
-                lblIcon, lblTitle, lblSub, divider,
+                lblTitle, lblSub, divider,
                 lblPass, fieldWrap, _chkShow, _lblError, _btnUnlock
             });
         }

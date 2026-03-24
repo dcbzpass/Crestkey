@@ -9,7 +9,6 @@ namespace Crestkey.Forms
 {
     public class MainForm : Form
     {
-        // ── Colours ────────────────────────────────────────────────────────────
         static readonly Color C_BG = Color.FromArgb(12, 12, 14);
         static readonly Color C_SURFACE = Color.FromArgb(18, 18, 22);
         static readonly Color C_RAISED = Color.FromArgb(26, 26, 32);
@@ -22,41 +21,33 @@ namespace Crestkey.Forms
         static readonly Color C_RED = Color.FromArgb(248, 113, 113);
         static readonly Color C_AMBER = Color.FromArgb(251, 191, 36);
 
-        // ── State ──────────────────────────────────────────────────────────────
         private Vault _vault;
         private Entry _selected;
         private bool _dirty;
         private const string SearchPlaceholder = "Search entries…";
         private const int IdleTimeoutSeconds = 300;
 
-        // ── Layout panels ──────────────────────────────────────────────────────
         private Panel _toolbar, _sidebar, _listPanel, _detailPanel;
 
-        // ── Toolbar ────────────────────────────────────────────────────────────
         private TextBox _txtSearch;
         private Button _btnAdd, _btnDelete, _btnSave, _btnGenerator, _btnLock;
         private Label _lblStatus;
 
-        // ── Sidebar ────────────────────────────────────────────────────────────
         private ListBox _lstCategories;
 
-        // ── Entry list ─────────────────────────────────────────────────────────
         private ListBox _lstEntries;
         private Label _lblEmpty;
 
-        // ── Detail panel ───────────────────────────────────────────────────────
         private Label _lblEntryTitle;
         private DarkTextBox _txtTitle, _txtUsername, _txtPassword,
                             _txtUrl, _txtNotes, _txtCategory, _txtTotpSecret;
         private Button _btnTogglePass, _btnCopyPass, _btnCopyUser, _btnCopyTotp;
         private Label _lblTotpCode, _lblTotpTimer, _lblModified, _lblClipStatus;
 
-        // ── Timers ─────────────────────────────────────────────────────────────
         private System.Windows.Forms.Timer _clipTimer;
         private System.Windows.Forms.Timer _totpTimer;
         private IdleLock _idleLock;
 
-        // ══════════════════════════════════════════════════════════════════════
         public MainForm(Vault vault)
         {
             _vault = vault;
@@ -77,15 +68,13 @@ namespace Crestkey.Forms
             _idleLock = new IdleLock(IdleTimeoutSeconds, () => { if (IsHandleCreated) Invoke((Action)LockVault); });
         }
 
-        // ══════════════════════════════════════════════════════════════════════
-        // BUILD UI
-        // ══════════════════════════════════════════════════════════════════════
         private void BuildUI()
         {
             Text = "Crestkey";
             Size = new Size(1080, 680);
             MinimumSize = new Size(900, 580);
             StartPosition = FormStartPosition.CenterScreen;
+            ShowIcon = false;
             BackColor = C_BG;
             ForeColor = C_TEXT;
             Font = new Font("Segoe UI", 9.5f);
@@ -123,7 +112,6 @@ namespace Crestkey.Forms
             if (show) _detailPanel.SetBounds(sideW + listW, tbH, detailW, h);
         }
 
-        // ── TOOLBAR ────────────────────────────────────────────────────────────
         private void BuildToolbar()
         {
             _toolbar = new Panel { BackColor = C_SURFACE };
@@ -205,7 +193,6 @@ namespace Crestkey.Forms
             return btn;
         }
 
-        // ── SIDEBAR ────────────────────────────────────────────────────────────
         private void BuildSidebar()
         {
             _sidebar = new Panel { BackColor = C_SURFACE };
@@ -249,7 +236,6 @@ namespace Crestkey.Forms
                 new SolidBrush(sel ? C_TEXT : C_SUBTLE), new PointF(18, e.Bounds.Y + 8));
         }
 
-        // ── ENTRY LIST ─────────────────────────────────────────────────────────
         private void BuildListPanel()
         {
             _listPanel = new Panel { BackColor = C_BG };
@@ -322,7 +308,6 @@ namespace Crestkey.Forms
             g.DrawLine(new Pen(C_BORDER), 0, e.Bounds.Bottom - 1, e.Bounds.Width, e.Bounds.Bottom - 1);
         }
 
-        // ── DETAIL PANEL ───────────────────────────────────────────────────────
         private void BuildDetailPanel()
         {
             _detailPanel = new Panel { BackColor = C_SURFACE, AutoScroll = true, Visible = false };
@@ -451,10 +436,6 @@ namespace Crestkey.Forms
                 e.Graphics.DrawPath(pen, path);
             }
         }
-
-        // ══════════════════════════════════════════════════════════════════════
-        // DATA / INTERACTION
-        // ══════════════════════════════════════════════════════════════════════
 
         private void SetDetailVisible(bool visible) { _detailPanel.Visible = visible; LayoutPanels(); }
 
@@ -682,9 +663,6 @@ namespace Crestkey.Forms
         }
     }
 
-    // ══════════════════════════════════════════════════════════════════════════
-    // DarkTextBox — forces white-on-dark via GDI parent hook
-    // ══════════════════════════════════════════════════════════════════════════
     internal class DarkTextBox : TextBox
     {
         static readonly Color Back = Color.FromArgb(26, 26, 32);
@@ -734,9 +712,6 @@ namespace Crestkey.Forms
         }
     }
 
-    // ══════════════════════════════════════════════════════════════════════════
-    // DwmHelper — colors the native Windows title bar via DWMAPI
-    // ══════════════════════════════════════════════════════════════════════════
     internal static class DwmHelper
     {
         [System.Runtime.InteropServices.DllImport("dwmapi.dll")]

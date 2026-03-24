@@ -59,7 +59,7 @@ namespace Crestkey.Forms
             const int fw = 392;
             int y = 24;
 
-            // ── Output field ──────────────────────────────────────────────────
+            // output field
             SmallLabel("Generated Password", px, y);
             y += 20;
 
@@ -80,7 +80,7 @@ namespace Crestkey.Forms
             Controls.Add(outWrap);
             y += 46;
 
-            // ── Entropy bar ───────────────────────────────────────────────────
+            // entropy bar
             var entropyRow = new Panel { Location = new Point(px, y), Size = new Size(fw, 18), BackColor = C_BG };
             _lblStrength = new Label { Location = new Point(0, 0), AutoSize = true, ForeColor = C_SUBTLE, Font = new Font("Segoe UI", 8f) };
             _lblEntropy = new Label { Location = new Point(fw - 70, 0), Size = new Size(70, 16), TextAlign = ContentAlignment.MiddleRight, ForeColor = C_MUTED, Font = new Font("Segoe UI", 8f) };
@@ -94,7 +94,7 @@ namespace Crestkey.Forms
             Controls.Add(_entropyBar);
             y += 18;
 
-            // ── Length ────────────────────────────────────────────────────────
+            // length
             var lenRow = new Panel { Location = new Point(px, y), Size = new Size(fw, 20), BackColor = C_BG };
             SmallLabel("Length", 0, 0, lenRow);
             _lblLength = new Label { Location = new Point(fw - 30, 0), Size = new Size(30, 16), TextAlign = ContentAlignment.MiddleRight, ForeColor = C_TEXT, Font = new Font("Segoe UI", 9f, FontStyle.Bold), Text = "16" };
@@ -116,7 +116,7 @@ namespace Crestkey.Forms
             Controls.Add(_trkLength);
             y += 42;
 
-            // ── Charsets ─────────────────────────────────────────────────────
+            // charsets
             SmallLabel("Character Sets", px, y);
             y += 20;
 
@@ -136,7 +136,7 @@ namespace Crestkey.Forms
             _chkSymbols.CheckedChanged += (s, e) => regen();
             _chkNoAmbig.CheckedChanged += (s, e) => regen();
 
-            // ── Buttons ───────────────────────────────────────────────────────
+            // buttons
             _btnRegen = new Button
             {
                 Text = "↺  Regenerate",
